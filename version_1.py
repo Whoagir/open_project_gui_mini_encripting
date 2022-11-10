@@ -1,5 +1,6 @@
 import pygame as pg
 import hashlib
+from constant import *
 
 
 def C(s):
@@ -11,62 +12,8 @@ pg.mixer.init()
 clock = pg.time.Clock()
 font = pg.font.SysFont('Comic sans', 14)
 
-WIDTH = 1080  # CONST
-HEIGHT = 700
-FPS = 60
-DT = 0.05
-
-DEFAULT_MENU_ITEM_WIDTH = 100
-DEFAULT_MENU_ITEM_HEIGHT = 30
 DEFAULT_MENU_ITEM_FONT = pg.font.SysFont('Comic sans', 15)
-DEFAULT_MENU_COLOR = C('448db6')
-DEFAULT_BORDER_COLOR = C('4875a9')
-DEFAULT_BORDER_RADIUS_1 = 2
-DEFAULT_BORDER_RADIUS_2 = 4
-DEFAULT_BACKGROUND_COLOR = C('52a9db')
-
-MENU_ITEM_COLOR_TEXT_HOVER = C('234059')
-MENU_ITEM_COLOR_HOVER = C('47dfdc')
-MENU_ITEM_COLOR_TEXT_SELECTED = C('0f161f')
-MENU_ITEM_COLOR_BORDER = DEFAULT_BORDER_COLOR
-MENU_BORDER_RADIUS_2 = 1
-
-INPUT_WIDTH = 300
-INPUT_HEIGHT = 100
-INPUT_BASE_BACKGROUND_COLOR = C('4efcf9')
-INPUT_SELECTED_BACKGROUND_COLOR = C('4a99c6')
-INPUT_BORDER_COLOR = DEFAULT_BORDER_COLOR
-INPUT_BORDER_COLOR_FOCUSED = C('436190')
-INPUT_DELETE_TIMER = 0.2
-
-OUTPUT_WIDTH = 300
-OUTPUT_HEIGHT = 100
-OUTPUT_BACKGROUND_COLOR = C('4efcf9')
-OUTPUT_BORDER_COLOR = DEFAULT_BORDER_COLOR
-
-BUTTON_CLICK_TIME = 0.3
-BUTTON_WIDTH = 200
-BUTTON_HEIGHT = 70
 BUTTON_FONT = pg.font.SysFont('Comic sans', 23)
-BUTTON_COLOR = C('4efcf9')
-BUTTON_BORDER_COLOR = DEFAULT_BORDER_COLOR
-BUTTON_TEXT_COLOR = C('000000')
-BUTTON_COLOR_HOVER = C('48e5df')
-BUTTON_COLOR_CLICKED = C('448db6')
-BUTTON_BACKGROUND_COLOR = C('4efcf9')
-
-LABEL_BACKGROUND_COLOR = C('3b799c')
-
-TAB_BACKGROUND = C('212121')
-
-# Задаем цвета
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-
-BLUE = (0, 0, 255)
-GRAY = (240, 240, 240)
-GRAY_2 = (200, 200, 200)
 
 focus_input = None
 
@@ -108,8 +55,18 @@ class Input(Base):
             background_color = INPUT_SELECTED_BACKGROUND_COLOR
         pg.draw.rect(surface, background_color, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
         pg.draw.rect(surface, border_color, self.rect, DEFAULT_BORDER_RADIUS_2, border_radius=DEFAULT_BORDER_RADIUS_1)
-        txt_surface = font.render(self.text, True, BLACK)
-        surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6))
+        if len(self.text) >= len_text_input:
+            text_o = []
+            c = 0
+            for i in range(0, len(self.text), len_text_input):
+                text_o.append(self.text[i:i + len_text_input])
+            for i in text_o:
+                txt_surface = font.render(i, True, BLACK)
+                surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6 + c))
+                c += 12
+        else:
+            txt_surface = font.render(self.text, True, BLACK)
+            surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6))
 
     def event_handler(self, e):
         if e.type == pg.MOUSEBUTTONUP and self.rect.collidepoint(pg.mouse.get_pos()):
@@ -137,8 +94,7 @@ class Input(Base):
 
 
 class Button(Base):
-
-    def __init__(self, tab, callback, pos=(0, 0), size=(0, 0), text='Button'):
+    def __init__(self, tab, callback, pos=(0, 0), size=(0, 0), text='Button', flag=1):
         self.rect = pg.Rect(pos[0], pos[1], size[0], size[1])
         self.tab = tab
         self.text = text
@@ -146,6 +102,16 @@ class Button(Base):
         self.clicked = False
         self.callback = callback
         self.timer = BUTTON_CLICK_TIME
+
+        # label_1 = MicroDraw('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80))
+        self.rect_out = pg.Rect(pos[0], pos[1] + size[1] + 10, size[0], size[1] // 4)
+        self.pos_0 = pos[0]
+        self.pos_1 = pos[1]
+        self.size_0 = size[0]
+        self.size_1 = size[1]
+        self.point = False
+        self.speed_loading = 100
+        self.flag = flag
 
     def render(self, surface):
         txt_color = BLACK
@@ -162,6 +128,23 @@ class Button(Base):
         txt_surface = BUTTON_FONT.render(self.text, True, txt_color)
         surface.blit(txt_surface, (self.rect.x + 20, self.rect.y + 20))
 
+        pg.draw.rect(surface, BUTTON_BACKGROUND_COLOR, self.rect_out, border_radius=DEFAULT_BORDER_RADIUS_1)
+        if self.flag == 1:
+            delt = 2
+        elif self.flag == 2:
+            delt = 0
+        if self.point and self.flag != 0:
+            t = self.speed_loading * (1 - int(self.timer))
+            print(t)
+            if t >= self.size_0:
+                t = self.size_0 - 30
+            for i in range(0, t, self.size_0 // 20):
+                rect_1 = pg.Rect(self.pos_0 + i + 3, self.pos_1 + 4 + self.size_1 + 10, self.size_0 // 20 - delt,
+                                 self.size_1 // 4 - 8)
+                pg.draw.rect(surface, BUTTON_COLOR_CLICKED, rect_1)
+        pg.draw.rect(surface, DEFAULT_BORDER_COLOR, self.rect_out, DEFAULT_BORDER_RADIUS_2,
+                     border_radius=DEFAULT_BORDER_RADIUS_1)
+
     def event_handler(self, e):
         self.hover = self.rect.collidepoint(pg.mouse.get_pos())
         if e.type == pg.MOUSEBUTTONUP and self.hover:
@@ -176,15 +159,17 @@ class Button(Base):
         self.clicked = True
         self.callback()
         self.timer = BUTTON_CLICK_TIME
+        self.point = True
 
 
 class Option(Base):
-    def __init__(self, text='', pos=(0, 0), size=(0, 0)):
+    def __init__(self, text='', pos=(0, 0), size=(0, 0), color=GRAY_2):
         self.rect = pg.Rect(pos[0], pos[1], size[0], size[1])
         self.text = text
+        self.color = color
 
     def render(self, surface):
-        pg.draw.rect(surface, GRAY_2, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
+        pg.draw.rect(surface, self.color, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
         txt_surface = BUTTON_FONT.render(self.text, True, BLACK)
         surface.blit(txt_surface, (self.rect.x + 20, self.rect.y + 20))
 
@@ -193,31 +178,47 @@ class Select(Base):
     def __init__(self, pos=(0, 0), size=(0, 0), text_list=[], align='horizontal'):
         self.rect = pg.Rect(pos[0], pos[1], size[0], size[1])
         self.option_list = []
+        self.rect_list = []
+        self.clicked = [False] * len(text_list)
         pos_option = list(pos[:])
+        size_option = list(size[:])
         for idx, text in enumerate(text_list):
             if align == 'horizontal':
                 pos_option[0] = (size[0] / len(text_list)) * idx
             else:
                 pos_option[1] = (size[1] / len(text_list)) * idx
+            size_option[0] = size[0] / (len(text_list))
+            size_option[1] = size[1] / (len(text_list))
             self.option_list.append(
                 Option(text, pos_option, size=(size[0] / (len(text_list)), size[1] / (len(text_list)))))
-        self.selected = text_list[0] if text_list else None
+            self.rect_list.append(
+                pg.Rect(pos_option[0], pos_option[1], size_option[0], size_option[1]))
+            self.selected = text_list[0] if text_list else None
 
     def render(self, surface):
-        pg.draw.rect(surface, DEFAULT_BACKGROUND_COLOR, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
+        pg.draw.rect(surface, WHITE, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
         for option in self.option_list:
             option.render(surface)
 
     def event_handler(self, e):
-        self.hover = self.rect.collidepoint(pg.mouse.get_pos())
+        self.hover = self.rect_list[0].collidepoint(pg.mouse.get_pos())
         if e.type == pg.MOUSEBUTTONUP and self.hover:
-            self.click()
+            activate = 0
+            self.click(activate)
+        self.hover = self.rect_list[1].collidepoint(pg.mouse.get_pos())
+        if e.type == pg.MOUSEBUTTONUP and self.hover:
+            activate = 1
+            self.click(activate)
+        #print(self.clicked)
 
-    def click(self):
-        pass
+    def click(self, activate):
+        for i in range(len(self.clicked)):
+            self.clicked[i] = False
+        self.clicked[activate] = True
+
 
     def get_selected(self):
-        return self.selected
+        return self.clicked
 
 
 class Output(Base):
@@ -231,8 +232,18 @@ class Output(Base):
         pg.draw.rect(surface, OUTPUT_BACKGROUND_COLOR, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
         pg.draw.rect(surface, OUTPUT_BORDER_COLOR, self.rect, DEFAULT_BORDER_RADIUS_2,
                      border_radius=DEFAULT_BORDER_RADIUS_1)
-        txt_surface = font.render(self.text, True, BLACK)
-        surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6))
+        if len(self.text) >= len_text:
+            text_o = []
+            c = 0
+            for i in range(0, len(self.text), len_text):
+                text_o.append(self.text[i:i + len_text])
+            for i in text_o:
+                txt_surface = font.render(i, True, BLACK)
+                surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6 + c))
+                c += 12
+        else:
+            txt_surface = font.render(self.text, True, BLACK)
+            surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6))
 
     def set_text(self, text):
         self.text = text
@@ -247,8 +258,18 @@ class Label(Base):
 
     def render(self, surface):
         pg.draw.rect(surface, LABEL_BACKGROUND_COLOR, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
-        txt_surface = font.render(self.text, True, BLACK)
-        surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6))
+        if len(self.text) >= len_text_label:
+            text_o = []
+            c = 0
+            for i in range(0, len(self.text), len_text_label):
+                text_o.append(self.text[i:i + len_text_label])
+            for i in text_o:
+                txt_surface = font.render(i, True, BLACK)
+                surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6 + c))
+                c += 12
+        else:
+            txt_surface = font.render(self.text, True, BLACK)
+            surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6))
 
 
 class Tab(Base):  # создает объект (вкладку)
@@ -339,6 +360,57 @@ class MenuItem(Base):
             self.select_callback(self)
 
 
+class MicroDraw(Base):
+    def __init__(self, tab, callback, pos=(0, 0), size=(0, 0), flag=1):
+        # label_1 = MicroDraw('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80))
+        self.rect_out = pg.Rect(pos[0], pos[1], size[0], size[1])
+        self.pos_0 = pos[0]
+        self.pos_1 = pos[1]
+        self.size_0 = size[0]
+        self.size_1 = size[1]
+        self.tab = tab
+        self.hover = False
+        self.clicked = False
+        self.callback = callback
+        self.timer = 5
+        self.point = False
+        self.speed_loading = 10
+        self.flag = flag
+
+    def render(self, surface):
+        btn_color = BUTTON_BACKGROUND_COLOR
+        pg.draw.rect(surface, btn_color, self.rect_out, border_radius=DEFAULT_BORDER_RADIUS_1)
+        if self.flag == 1:
+            delt = 2
+        elif self.flag == 2:
+            delt = 0
+        if self.point:
+            t = self.speed_loading * (5 - int(self.timer))
+            if t >= self.size_0:
+                t = self.size_0 - 30
+            for i in range(0, t, self.size_0 // 20):
+                rect_1 = pg.Rect(self.pos_0 + i + 3, self.pos_1 + 4, self.size_0 // 20 - delt, self.size_1 - 8)
+                pg.draw.rect(surface, BUTTON_COLOR_CLICKED, rect_1)
+        pg.draw.rect(surface, DEFAULT_BORDER_COLOR, self.rect_out, DEFAULT_BORDER_RADIUS_2,
+                     border_radius=DEFAULT_BORDER_RADIUS_1)
+
+    def event_handler(self, e):
+        self.hover = self.rect_out.collidepoint(pg.mouse.get_pos())
+        if e.type == pg.MOUSEBUTTONUP and self.hover:
+            self.click()
+
+    def update(self):
+        self.timer -= 0.5
+        if self.timer <= 0:
+            self.clicked = False
+
+    def click(self):
+        self.point = True
+        self.clicked = True
+        self.callback()
+        self.timer = 5
+
+
 class Base64(Tab):
     def setup(self):
         input_field = Input("input_field")
@@ -367,13 +439,14 @@ class SHA1(Tab):
         input_field.text = ''
         self.fields['i1'] = input_field
         label_2 = Label(pos=(10, 120), size=(WIDTH - 20, 200),
-                        text='Типа информация какая то. В криптографии SHA-1 (Secure Hash Algorithm 1) - это криптографическая хэш-функция')
+                        text='Типа информация какая то. В криптографии SHA-1'
+                             '(Secure Hash Algorithm 1) - это криптографическая хэш-функция')
         self.fields['l2'] = label_2
         button_1 = Button('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80), text='Result')
         self.fields['b1'] = button_1
         output_1 = Output(pos=(10, 440), size=(WIDTH - 20, 80))
         self.fields['o1'] = output_1
-        selected_1 = Select(pos=(10, 540), size=(WIDTH - 20, 80), text_list=['Кодировать', 'decod'])
+        selected_1 = Select(pos=(10, 540), size=(WIDTH - 20, 80), text_list=['Кодировать', 'Декодировать'])
         self.fields['s1'] = selected_1
         # input_field = Input("input_field", pos=(10, 540), size=(WIDTH - 20, 80))
         # input_field.text = ''
@@ -381,10 +454,12 @@ class SHA1(Tab):
 
     def submit(self):
         text = self.fields['i1'].get_text()
-        hash_text = hashlib.sha1()
-        hash_text.update(text.encode('utf-8'))
-        output_text = hash_text.hexdigest()
-        self.fields['o1'].set_text(output_text)
+        d = self.fields['s1'].get_selected()
+        if d[0]:
+            hash_text = hashlib.sha1()
+            hash_text.update(text.encode('utf-8'))
+            output_text = hash_text.hexdigest()
+            self.fields['o1'].set_text(output_text)
 
 
 class SHA256(Tab):
@@ -395,11 +470,13 @@ class SHA256(Tab):
         input_field.text = self.name
         self.fields['i1'] = input_field
         label_2 = Label(pos=(10, 120), size=(WIDTH - 20, 200),
-                        text='Типа информация какая то. SHA256 - хеш-функция из семейства алгоритмов SHA-2 предназначена для создания «отпечатков» или «дайджестов» для сообщений произвольной длины')
+                        text='Типа информация какая то. SHA256 - хеш-функция из семейства алгоритмов SHA-2'
+                             ' предназначена для создания «отпечатков» или «дайджестов» для сообщений'
+                             ' произвольной длины')
         self.fields['l2'] = label_2
         button_1 = Button('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80), text='Result')
         self.fields['b1'] = button_1
-        output_1 = Output(pos=(10, 440), size=(WIDTH - 20, 80))
+        output_1 = Output(pos=(10, 480), size=(WIDTH - 20, 80))
         self.fields['o1'] = output_1
 
     def submit(self):
@@ -437,11 +514,11 @@ class AES(Tab):
     def setup(self):
         input_field = Input("input_field")
         input_field.text = self.name
-        # output_field = InputField("output_field")
-        # self.fields.append(input_field)
-        # self.fields.append(output_field)
-        # input_field = Field("input_field")
-        # input_field = Field("input_field")
+        label_1 = MicroDraw('', self.submit, pos=(10, 340), size=(WIDTH - 20, 20), flag=1)
+        self.fields['loa1'] = label_1
+
+    def submit(self):
+        pass
 
 
 class RC4(Tab):
@@ -483,7 +560,7 @@ done = False
 
 screen = pg.display.set_mode((WIDTH, HEIGHT))
 pg.display.set_caption("Криптография")  # Название
-pg.display.set_icon(pg.image.load("pictures.jpg"))  # Иконка
+# pg.display.set_icon(pg.image.load("pictures.jpg"))  # Иконка
 tab_surface = pg.Surface((WIDTH, HEIGHT - DEFAULT_MENU_ITEM_HEIGHT))
 
 menu = Menu(tab_list)
