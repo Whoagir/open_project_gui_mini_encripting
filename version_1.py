@@ -1,5 +1,6 @@
 import pygame as pg
 import hashlib
+import pyperclip
 from constant import *
 
 
@@ -68,13 +69,18 @@ class Input(Base):
             txt_surface = font.render(self.text, True, BLACK)
             surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6))
 
-    def event_handler(self, e):
-        if e.type == pg.MOUSEBUTTONUP and self.rect.collidepoint(pg.mouse.get_pos()):
-            self.click()
-
     def get_text(self):
         return self.text
         pass
+
+    def event_handler(self, e):
+        if e.type == pg.MOUSEBUTTONUP and self.rect.collidepoint(pg.mouse.get_pos()):
+            self.click()
+        if (pg.key.get_pressed()[pg.K_c] and (
+                pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL])) and self == focus_input:
+            pyperclip.copy(self.text)
+        if pg.key.get_pressed()[pg.K_v] and (pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL]):
+            self.text = pyperclip.paste()
 
     def click(self):
         global focus_input
@@ -88,6 +94,9 @@ class Input(Base):
             return
         self.text = self.text[:-1]
         self.delete_timer = INPUT_DELETE_TIMER
+
+    def select_text(self):
+        pass
 
     def update(self):
         self.delete_timer = max(0, self.delete_timer - DT)
@@ -135,7 +144,7 @@ class Button(Base):
             delt = 0
         if self.point and self.flag != 0:
             t = self.speed_loading * (1 - int(self.timer))
-            print(t)
+            # print(t)
             if t >= self.size_0:
                 t = self.size_0 - 30
             for i in range(0, t, self.size_0 // 20):
@@ -209,13 +218,11 @@ class Select(Base):
         if e.type == pg.MOUSEBUTTONUP and self.hover:
             activate = 1
             self.click(activate)
-        #print(self.clicked)
 
     def click(self, activate):
         for i in range(len(self.clicked)):
             self.clicked[i] = False
         self.clicked[activate] = True
-
 
     def get_selected(self):
         return self.clicked
@@ -227,10 +234,16 @@ class Output(Base):
         self.width = INPUT_WIDTH
         self.height = INPUT_HEIGHT
         self.text = text
+        self.delete_timer = 0
 
     def render(self, surface):
-        pg.draw.rect(surface, OUTPUT_BACKGROUND_COLOR, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
-        pg.draw.rect(surface, OUTPUT_BORDER_COLOR, self.rect, DEFAULT_BORDER_RADIUS_2,
+        border_color = OUTPUT_BORDER_COLOR
+        background_color = OUTPUT_BACKGROUND_COLOR
+        if self == focus_input:
+            border_color = OUTPUT_BORDER_COLOR
+            background_color = INPUT_SELECTED_BACKGROUND_COLOR
+        pg.draw.rect(surface, background_color, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
+        pg.draw.rect(surface, border_color, self.rect, DEFAULT_BORDER_RADIUS_2,
                      border_radius=DEFAULT_BORDER_RADIUS_1)
         if len(self.text) >= len_text:
             text_o = []
@@ -245,8 +258,27 @@ class Output(Base):
             txt_surface = font.render(self.text, True, BLACK)
             surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6))
 
+    def event_handler(self, e):
+        if e.type == pg.MOUSEBUTTONUP and self.rect.collidepoint(pg.mouse.get_pos()):
+            self.click()
+        if (pg.key.get_pressed()[pg.K_c] and (
+                pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL])) and self == focus_input:
+            pyperclip.copy(self.text)
+        if pg.key.get_pressed()[pg.K_v] and (pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL]):
+            self.text = pyperclip.paste()
+
+    def click(self):
+        global focus_input
+        set_focus(self)
+
     def set_text(self, text):
         self.text = text
+
+    def insert(self, key):
+        pass
+
+    def update(self):
+        self.delete_timer = max(0, self.delete_timer - DT)
 
 
 class Label(Base):
@@ -272,7 +304,7 @@ class Label(Base):
             surface.blit(txt_surface, (self.rect.x + 10, self.rect.y + 6))
 
 
-class Tab(Base):  # создает объект (вкладку)
+class Tab(Base):
     def __init__(self, name=''):
         self.name = name
         self.fields = dict()
@@ -565,12 +597,10 @@ tab_surface = pg.Surface((WIDTH, HEIGHT - DEFAULT_MENU_ITEM_HEIGHT))
 
 menu = Menu(tab_list)
 
-# Цикл игры
 while not done:
     for tab in tab_list:
         if tab.name == menu.get_selected_item_name():
             current_tab = tab
-    # _цикл_событий_и_передача_в_таб
     key_input = pg.key.get_pressed()
     if key_input[pg.K_BACKSPACE]:
         focus_input.delete()
@@ -584,10 +614,11 @@ while not done:
             if tab != current_tab:
                 continue
             tab.event_handler(event)
+            # print(focus_input)
         if event.type == pg.KEYDOWN:
-            if event.key != pg.K_BACKSPACE:
+            # not key_input[pg.K_BACKSPACE] and not key_input[pg.K_c] and not (key_input[pg.K_LCTRL] or key_input[pg.K_RCTRL])
+            if event.unicode != '':
                 focus_input.insert(event.unicode)
-    # Пробегаемся по нашим вкладкам и проверяем обновление
     for tab in tab_list:
         if tab != current_tab:
             continue
