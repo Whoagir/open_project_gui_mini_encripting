@@ -193,6 +193,8 @@ class Option(Base):
 
     def render(self, surface):
         pg.draw.rect(surface, self.color, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
+        pg.draw.rect(surface, BLACK, self.rect, DEFAULT_BORDER_RADIUS_2,
+                     border_radius=DEFAULT_BORDER_RADIUS_1)
         txt_surface = BUTTON_FONT.render(self.text, True, BLACK)
         surface.blit(txt_surface, (self.rect.x + 20, self.rect.y + 20))
 
@@ -203,6 +205,8 @@ class Select(Base):
         self.option_list = []
         self.rect_list = []
         self.clicked = [False] * len(text_list)
+        self.color = [GRAY_2] * len(text_list)
+        count = 0
         pos_option = list(pos[:])
         size_option = list(size[:])
         for idx, text in enumerate(text_list):
@@ -212,30 +216,33 @@ class Select(Base):
                 pos_option[1] = pos[1] + (size[1] / len(text_list)) * idx
             size_option[0] = size[0] / 2
             self.option_list.append(
-                Option(text, pos_option, size_option))
+                Option(text, pos_option, size_option, color=self.color[count]))
             self.rect_list.append(
                 pg.Rect(pos_option[0], pos_option[1], size_option[0], size_option[1]))
             self.selected = text_list[0] if text_list else None
+            count += 1
 
     def render(self, surface):
         pg.draw.rect(surface, WHITE, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
+        count = 0
         for option in self.option_list:
+            option.color = self.color[count]
             option.render(surface)
+            count += 1
 
     def event_handler(self, e):
-        self.hover = self.rect_list[0].collidepoint(pg.mouse.get_pos())
-        if e.type == pg.MOUSEBUTTONUP and self.hover:
-            activate = 0
-            self.click(activate)
-        self.hover = self.rect_list[1].collidepoint(pg.mouse.get_pos())
-        if e.type == pg.MOUSEBUTTONUP and self.hover:
-            activate = 1
-            self.click(activate)
+        for i in range(2):
+            self.hover = self.rect_list[i].collidepoint(pg.mouse.get_pos())
+            if e.type == pg.MOUSEBUTTONUP and self.hover:
+                activate = i
+                self.click(activate)
 
     def click(self, activate):
         for i in range(len(self.clicked)):
             self.clicked[i] = False
+            self.color[i] = GRAY_2
         self.clicked[activate] = True
+        self.color[activate] = WHITE
 
     def get_selected(self):
         return self.clicked
