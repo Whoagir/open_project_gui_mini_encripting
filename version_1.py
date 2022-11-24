@@ -1,5 +1,8 @@
+import time
+
 import pygame as pg
 import hashlib
+import threading
 import pyperclip
 from constant import *
 
@@ -103,7 +106,7 @@ class Input(Base):
 
 
 class Button(Base):
-    def __init__(self, tab, callback, pos=(0, 0), size=(0, 0), text='Button', flag=1):
+    def __init__(self, tab, callback, pos=(0, 0), size=(0, 0), text='Button', flag=0, speed_l=70):
         self.rect = pg.Rect(pos[0], pos[1], size[0], size[1])
         self.tab = tab
         self.text = text
@@ -112,15 +115,16 @@ class Button(Base):
         self.callback = callback
         self.timer = BUTTON_CLICK_TIME
 
-        # label_1 = MicroDraw('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80))
         self.rect_out = pg.Rect(pos[0], pos[1] + size[1] + 10, size[0], size[1] // 4)
         self.pos_0 = pos[0]
         self.pos_1 = pos[1]
         self.size_0 = size[0]
         self.size_1 = size[1]
         self.point = False
-        self.speed_loading = 100
+        self.speed_loading = speed_l
         self.flag = flag
+
+        self.point_callback = False
 
     def render(self, surface):
         txt_color = BLACK
@@ -137,22 +141,26 @@ class Button(Base):
         txt_surface = BUTTON_FONT.render(self.text, True, txt_color)
         surface.blit(txt_surface, (self.rect.x + 20, self.rect.y + 20))
 
-        pg.draw.rect(surface, BUTTON_BACKGROUND_COLOR, self.rect_out, border_radius=DEFAULT_BORDER_RADIUS_1)
+        if self.flag != 0:
+            pg.draw.rect(surface, BUTTON_BACKGROUND_COLOR, self.rect_out, border_radius=DEFAULT_BORDER_RADIUS_1)
         if self.flag == 1:
             delt = 2
         elif self.flag == 2:
             delt = 0
         if self.point and self.flag != 0:
-            t = self.speed_loading * (1 - int(self.timer))
-            # print(t)
+            t = - int(self.timer * self.speed_loading)
+            print(t, self.size_0, self.timer)
             if t >= self.size_0:
                 t = self.size_0 - 30
+                self.point_callback = True
             for i in range(0, t, self.size_0 // 20):
                 rect_1 = pg.Rect(self.pos_0 + i + 3, self.pos_1 + 4 + self.size_1 + 10, self.size_0 // 20 - delt,
                                  self.size_1 // 4 - 8)
                 pg.draw.rect(surface, BUTTON_COLOR_CLICKED, rect_1)
-        pg.draw.rect(surface, DEFAULT_BORDER_COLOR, self.rect_out, DEFAULT_BORDER_RADIUS_2,
-                     border_radius=DEFAULT_BORDER_RADIUS_1)
+            print(self.point_callback)
+        if self.flag != 0:
+            pg.draw.rect(surface, DEFAULT_BORDER_COLOR, self.rect_out, DEFAULT_BORDER_RADIUS_2,
+                         border_radius=DEFAULT_BORDER_RADIUS_1)
 
     def event_handler(self, e):
         self.hover = self.rect.collidepoint(pg.mouse.get_pos())
@@ -169,6 +177,12 @@ class Button(Base):
         self.callback()
         self.timer = BUTTON_CLICK_TIME
         self.point = True
+
+    def get_time(self):
+        return pg.time.get_ticks()
+
+    def get_point(self):
+        return self.point_callback
 
 
 class Option(Base):
@@ -193,13 +207,12 @@ class Select(Base):
         size_option = list(size[:])
         for idx, text in enumerate(text_list):
             if align == 'horizontal':
-                pos_option[0] = (size[0] / len(text_list)) * idx
+                pos_option[0] = pos[0] + (size[0] / len(text_list)) * idx
             else:
-                pos_option[1] = (size[1] / len(text_list)) * idx
-            size_option[0] = size[0] / (len(text_list))
-            size_option[1] = size[1] / (len(text_list))
+                pos_option[1] = pos[1] + (size[1] / len(text_list)) * idx
+            size_option[0] = size[0] / 2
             self.option_list.append(
-                Option(text, pos_option, size=(size[0] / (len(text_list)), size[1] / (len(text_list)))))
+                Option(text, pos_option, size_option))
             self.rect_list.append(
                 pg.Rect(pos_option[0], pos_option[1], size_option[0], size_option[1]))
             self.selected = text_list[0] if text_list else None
@@ -271,8 +284,11 @@ class Output(Base):
         global focus_input
         set_focus(self)
 
-    def set_text(self, text):
-        self.text = text
+    def set_text(self, text, type='full'):
+        if type == 'full':
+            self.text = text
+        else:
+            self.text = self.text + text
 
     def insert(self, key):
         pass
@@ -393,20 +409,21 @@ class MenuItem(Base):
 
 
 class MicroDraw(Base):
-    def __init__(self, tab, callback, pos=(0, 0), size=(0, 0), flag=1):
+    def __init__(self, tab, func, pos=(0, 0), size=(0, 0), flag=1, pos_b=(0, 0), size_b=(0, 0), speed=100):
         # label_1 = MicroDraw('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80))
         self.rect_out = pg.Rect(pos[0], pos[1], size[0], size[1])
+        self.rect_out_button = pg.Rect(pos_b[0], pos_b[1], size_b[0], size_b[1])
         self.pos_0 = pos[0]
         self.pos_1 = pos[1]
         self.size_0 = size[0]
         self.size_1 = size[1]
         self.tab = tab
+        self.func = func
         self.hover = False
         self.clicked = False
-        self.callback = callback
         self.timer = 5
         self.point = False
-        self.speed_loading = 10
+        self.speed_loading = speed
         self.flag = flag
 
     def render(self, surface):
@@ -420,6 +437,7 @@ class MicroDraw(Base):
             t = self.speed_loading * (5 - int(self.timer))
             if t >= self.size_0:
                 t = self.size_0 - 30
+                self.func()
             for i in range(0, t, self.size_0 // 20):
                 rect_1 = pg.Rect(self.pos_0 + i + 3, self.pos_1 + 4, self.size_0 // 20 - delt, self.size_1 - 8)
                 pg.draw.rect(surface, BUTTON_COLOR_CLICKED, rect_1)
@@ -427,7 +445,7 @@ class MicroDraw(Base):
                      border_radius=DEFAULT_BORDER_RADIUS_1)
 
     def event_handler(self, e):
-        self.hover = self.rect_out.collidepoint(pg.mouse.get_pos())
+        self.hover = self.rect_out_button.collidepoint(pg.mouse.get_pos())
         if e.type == pg.MOUSEBUTTONUP and self.hover:
             self.click()
 
@@ -439,7 +457,6 @@ class MicroDraw(Base):
     def click(self):
         self.point = True
         self.clicked = True
-        self.callback()
         self.timer = 5
 
 
@@ -515,8 +532,14 @@ class SHA256(Tab):
         text = self.fields['i1'].get_text()
         hash_text = hashlib.sha256()
         hash_text.update(text.encode('utf-8'))
-        output_text = hash_text.hexdigest()
-        self.fields['o1'].set_text(output_text)
+        output_text = ' 1234567 '
+        a = threading.Thread(target=self.fields['o1'].set_text, args=output_text)
+        a.start()
+        # print(self.fields['b1'].get_point())
+        if self.fields['b1'].get_point():
+            output_text = hash_text.hexdigest()
+            a.terminate()
+        # a.join()
 
 
 class SHA512(Tab):
@@ -529,25 +552,33 @@ class SHA512(Tab):
         label_2 = Label(pos=(10, 120), size=(WIDTH - 20, 200),
                         text='Типа информация какая то. SHA512 - хеш-функция из семейства алгоритмов SHA-2')
         self.fields['l2'] = label_2
-        button_1 = Button('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80), text='Result')
+        button_1 = Button('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80), text='Result', flag=0)
         self.fields['b1'] = button_1
-        output_1 = Output(pos=(10, 440), size=(WIDTH - 20, 80))
+        label_1 = MicroDraw('', self.submit_out, pos=(10, 440), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 340),
+                            size_b=(WIDTH - 20, 80), speed=120)
+        self.fields['loa1'] = label_1
+        output_1 = Output(pos=(10, 480), size=(WIDTH - 20, 80))
         self.fields['o1'] = output_1
+        selected_1 = Select(pos=(10, 540), size=(WIDTH - 20, 80), text_list=['Кодировать', 'Декодировать'])
+        self.fields['s1'] = selected_1
 
     def submit(self):
+        self.fields['o1'].set_text('  ')
         text = self.fields['i1'].get_text()
         hash_text = hashlib.sha512()
         hash_text.update(text.encode('utf-8'))
-        output_text = hash_text.hexdigest()
-        self.fields['o1'].set_text(output_text)
+        self.output_text = hash_text.hexdigest()
+
+    def submit_out(self):
+        self.fields['o1'].set_text(self.output_text)
 
 
 class AES(Tab):
     def setup(self):
         input_field = Input("input_field")
         input_field.text = self.name
-        label_1 = MicroDraw('', self.submit, pos=(10, 340), size=(WIDTH - 20, 20), flag=1)
-        self.fields['loa1'] = label_1
+        # label_1 = MicroDraw('', self.submit, pos=(10, 340), size=(WIDTH - 20, 20), flag=1)
+        # self.fields['loa1'] = label_1
 
     def submit(self):
         pass
