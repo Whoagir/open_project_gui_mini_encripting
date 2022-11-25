@@ -1,15 +1,8 @@
-import time
-
 import pygame as pg
 import hashlib
-import threading
+import base64
 import pyperclip
 from constant import *
-
-
-def C(s):
-    return int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
-
 
 pg.init()
 pg.mixer.init()
@@ -469,13 +462,30 @@ class MicroDraw(Base):
 
 class Base64(Tab):
     def setup(self):
-        input_field = Input("input_field")
+        label_1 = Label(pos=(10, 10), size=(WIDTH - 20, 40), text='Поле ввода')
+        self.fields['l1'] = label_1
+        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 120))
         input_field.text = self.name
-        # output_field = InputField("output_field")
-        # self.fields.append(input_field)
-        # self.fields.append(output_field)
-        # input_field = Field("input_field")
-        # input_field = Field("input_field")
+        self.fields['i1'] = input_field
+        label_2 = Label(pos=(10, 160), size=(WIDTH - 20, 200),
+                        text='Типа информация какая то. SHA512 - хеш-функция из семейства алгоритмов SHA-2')
+        self.fields['l2'] = label_2
+        button_1 = Button('', self.submit, pos=(10, 370), size=(WIDTH - 20, 80), text='Result', flag=0)
+        self.fields['b1'] = button_1
+        label_1 = MicroDraw('', self.submit_out, pos=(10, 460), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 370),
+                            size_b=(WIDTH - 20, 80), speed=120)
+        self.fields['loa1'] = label_1
+        output_1 = Output(pos=(10, 490), size=(WIDTH - 20, 120))
+        self.fields['o1'] = output_1
+
+    def submit(self):
+        self.fields['o1'].set_text('  ')
+        text = self.fields['i1'].get_text()
+        b = base64.b64encode(bytes(text, 'utf-8'))
+        self.output_text = b.decode('utf-8')
+
+    def submit_out(self):
+        self.fields['o1'].set_text(self.output_text)
 
 
 class MD5(Tab):
@@ -522,52 +532,48 @@ class SHA256(Tab):
     def setup(self):
         label_1 = Label(pos=(10, 10), size=(WIDTH - 20, 40), text='Поле ввода')
         self.fields['l1'] = label_1
-        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 80))
+        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 120))
         input_field.text = self.name
         self.fields['i1'] = input_field
-        label_2 = Label(pos=(10, 120), size=(WIDTH - 20, 200),
-                        text='Типа информация какая то. SHA256 - хеш-функция из семейства алгоритмов SHA-2'
-                             ' предназначена для создания «отпечатков» или «дайджестов» для сообщений'
-                             ' произвольной длины')
+        label_2 = Label(pos=(10, 160), size=(WIDTH - 20, 200),
+                        text='Типа информация какая то. SHA512 - хеш-функция из семейства алгоритмов SHA-2')
         self.fields['l2'] = label_2
-        button_1 = Button('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80), text='Result')
+        button_1 = Button('', self.submit, pos=(10, 370), size=(WIDTH - 20, 80), text='Result', flag=0)
         self.fields['b1'] = button_1
-        output_1 = Output(pos=(10, 480), size=(WIDTH - 20, 80))
+        label_1 = MicroDraw('', self.submit_out, pos=(10, 460), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 370),
+                            size_b=(WIDTH - 20, 80), speed=120)
+        self.fields['loa1'] = label_1
+        output_1 = Output(pos=(10, 490), size=(WIDTH - 20, 120))
         self.fields['o1'] = output_1
 
     def submit(self):
+        self.fields['o1'].set_text('  ')
         text = self.fields['i1'].get_text()
         hash_text = hashlib.sha256()
         hash_text.update(text.encode('utf-8'))
-        output_text = ' 1234567 '
-        a = threading.Thread(target=self.fields['o1'].set_text, args=output_text)
-        a.start()
-        # print(self.fields['b1'].get_point())
-        if self.fields['b1'].get_point():
-            output_text = hash_text.hexdigest()
-            a.terminate()
-        # a.join()
+        self.output_text = hash_text.hexdigest()
+
+    def submit_out(self):
+        self.fields['o1'].set_text(self.output_text)
 
 
 class SHA512(Tab):
     def setup(self):
         label_1 = Label(pos=(10, 10), size=(WIDTH - 20, 40), text='Поле ввода')
         self.fields['l1'] = label_1
-        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 80))
+        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 120))
         input_field.text = self.name
         self.fields['i1'] = input_field
-        label_2 = Label(pos=(10, 120), size=(WIDTH - 20, 200),
+        label_2 = Label(pos=(10, 160), size=(WIDTH - 20, 200),
                         text='Типа информация какая то. SHA512 - хеш-функция из семейства алгоритмов SHA-2')
         self.fields['l2'] = label_2
-        button_1 = Button('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80), text='Result', flag=0)
+        button_1 = Button('', self.submit, pos=(10, 370), size=(WIDTH - 20, 80), text='Result', flag=0)
         self.fields['b1'] = button_1
-        label_1 = MicroDraw('', self.submit_out, pos=(10, 440), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 340),
+        label_1 = MicroDraw('', self.submit_out, pos=(10, 460), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 370),
                             size_b=(WIDTH - 20, 80), speed=120)
         self.fields['loa1'] = label_1
-        output_1 = Output(pos=(10, 480), size=(WIDTH - 20, 80))
+        output_1 = Output(pos=(10, 490), size=(WIDTH - 20, 120))
         self.fields['o1'] = output_1
-        selected_1 = Select(pos=(10, 540), size=(WIDTH - 20, 80), text_list=['Кодировать', 'Декодировать'])
-        self.fields['s1'] = selected_1
 
     def submit(self):
         self.fields['o1'].set_text('  ')

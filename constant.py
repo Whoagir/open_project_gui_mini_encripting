@@ -58,6 +58,6 @@ BLUE = (0, 0, 255)
 GRAY = (240, 240, 240)
 GRAY_2 = (200, 200, 200)
 
-len_text = 50
+len_text = 122
 len_text_label = 100
-len_text_input = 70
+len_text_input = 130
