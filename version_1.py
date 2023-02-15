@@ -3,10 +3,8 @@ import pygame as pg
 import hashlib
 import base64
 import pyperclip
+from AES666 import AESCipher
 import rsa
-from Crypto import Random
-from Crypto.Cipher import AES
-from base64 import b64encode, b64decode
 from constant import *
 
 pg.init()
@@ -18,7 +16,7 @@ DEFAULT_MENU_ITEM_FONT = pg.font.SysFont('Comic sans', 15)
 BUTTON_FONT = pg.font.SysFont('Comic sans', 23)
 
 focus_input = None
-
+crazy_rsa = ''
 
 def set_focus(item):
     global focus_input
@@ -80,7 +78,7 @@ class Input(Base):
         if (pg.key.get_pressed()[pg.K_c] and (
                 pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL])) and self == focus_input:
             pyperclip.copy(self.text)
-        if (pg.key.get_pressed()[pg.K_v] and (pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL]))\
+        if (pg.key.get_pressed()[pg.K_v] and (pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL])) \
                 and self == focus_input:
             self.text = pyperclip.paste()
 
@@ -102,7 +100,6 @@ class Input(Base):
 
     def set_text(self, text):
         self.text = text
-
 
     def update(self):
         self.delete_timer = max(0, self.delete_timer - DT)
@@ -286,7 +283,7 @@ class Output(Base):
             self.click()
         if (pg.key.get_pressed()[pg.K_c] and (
                 pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL])) and self == focus_input:
-            #print(type(self.text))
+            # print(type(self.text))
             if type(self.text) == bytes:
                 pyperclip.copy(self.text.decode('utf-8'))
             else:
@@ -474,37 +471,59 @@ class MicroDraw(Base):
         self.timer = 5
 
 
-class AESCipher(object):
-    def __init__(self, key):
-        self.block_size = AES.block_size
-        self.key = hashlib.sha256(key.encode()).digest()
+class RC4_Cipher(object):
+    def __int__(self):
+        self.key = []
+        self.intext = ''
+        self.outext = ''
 
-    def encrypt(self, plain_text):
-        plain_text = self.__pad(plain_text)
-        iv = Random.new().read(self.block_size)
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        encrypted_text = cipher.encrypt(plain_text.encode())
-        return b64encode(iv + encrypted_text).decode("utf-8")
+    def key_generate(self, key):
+        s_box = list(range(256))
+        j = 0
+        if key == '':
+            key = 'none_public_key'
+        for i in range(256):
+            j = (j + s_box[i] + ord(key[i % len(key)])) % 256
+            s_box[i], s_box[j] = s_box[j], s_box[i]
+        self.key = s_box
 
-    def decrypt(self, encrypted_text):
-        encrypted_text = b64decode(encrypted_text)
-        iv = encrypted_text[:self.block_size]
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        plain_text = cipher.decrypt(encrypted_text[self.block_size:]).decode("utf-8")
-        return self.__unpad(plain_text)
+    def encrypt(self, message):
+        res = []
+        i = j = 0
+        box = self.key
+        for s in message:
+            i = (i + 1) % 256
+            j = (j + box[i]) % 256
+            box[i], box[j] = box[j], box[i]
+            t = (box[i] + box[j]) % 256
+            k = box[t]
+            res.append(chr(ord(s) ^ k))
+        cipher = "".join(res)
+        return str(base64.b64encode(cipher.encode('utf-8')), 'utf-8')
 
-    def __pad(self, plain_text):
-        number_of_bytes_to_pad = self.block_size - len(plain_text) % self.block_size
-        ascii_string = chr(number_of_bytes_to_pad)
-        padding_str = number_of_bytes_to_pad * ascii_string
-        padded_plain_text = plain_text + padding_str
-        return padded_plain_text
+    def decrypt(self, message):
+        plain = base64.b64decode(message)
+        plain = bytes.decode(plain)
+        res = []
+        i = j = 0
+        box = self.key
+        for s in plain:
+            i = (i + 1) % 256
+            j = (j + box[i]) % 256
+            box[i], box[j] = box[j], box[i]
+            t = (box[i] + box[j]) % 256
+            k = box[t]
+            res.append(chr(ord(s) ^ k))
 
-    @staticmethod
-    def __unpad(plain_text):
-        last_character = plain_text[len(plain_text) - 1:]
-        return plain_text[:-ord(last_character)]
+        cipher = "".join(res)
+        return cipher
 
+
+
+
+# a = RSA_Cipher()
+# a.generate_key(1024)
+# print(a.encrypt("Hellow world"))
 
 class Base64(Tab):
     def setup(self):
@@ -684,16 +703,15 @@ class AES12(Tab):
         self.fields['o1'] = output_1
 
     def submit(self):
-        self.fields['o1'].set_text('  ')
         text = self.fields['i1'].get_text()
-        self.key = self.fields['i2'].get_text()
-        a = AESCipher(key=self.key)
-        #print(a.decrypt('aoRrVGYiT8zOz8LuuLWHRI2ESQBN36SohhLfSXxV73o='))
+        self.key = str(self.fields['i2'].get_text())
+        a = AESCipher(self.key)
         d = self.fields['s1'].get_selected()
         if d[0]:
             self.output_text = a.encrypt(text)
         if d[1]:
             self.output_text = a.decrypt(text)
+            pass
 
     def submit_out(self):
         self.fields['o1'].set_text(self.output_text)
@@ -705,24 +723,97 @@ class AES12(Tab):
 
 class RC4(Tab):
     def setup(self):
-        input_field = Input("input_field")
+        label_1 = Label(pos=(10, 10), size=(WIDTH - 20, 40), text='Поле ввода')
+        self.fields['l1'] = label_1
+        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 110))
         input_field.text = self.name
-        # output_field = InputField("output_field")
-        # self.fields.append(input_field)
-        # self.fields.append(output_field)
-        # input_field = Field("input_field")
-        # input_field = Field("input_field")
+        self.fields['i1'] = input_field
+        label_2 = Label(pos=(10, 150), size=(WIDTH - 20, 90),
+                        text='Типа информация какая то. SHA512 - хеш-функция из семейства алгоритмов SHA-2')
+        self.fields['l2'] = label_2
+        button_2 = Button('', self.generation_key, pos=(10, 250), size=(528, 70), text='Генерация ключа', flag=0)
+        self.fields['b2'] = button_2
+        input_field_2 = Input("ffff", pos=(537, 250), size=(528, 70))
+        self.fields['i2'] = input_field_2
+        selected_1 = Select(pos=(10, 330), size=(WIDTH - 20, 80), text_list=['Кодировать', 'Декодировать'])
+        self.fields['s1'] = selected_1
+        button_1 = Button('', self.submit, pos=(10, 420), size=(WIDTH - 20, 80), text='Result', flag=0)
+        self.fields['b1'] = button_1
+        label_1 = MicroDraw('', self.submit_out, pos=(10, 510), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 420),
+                            size_b=(WIDTH - 20, 80), speed=120)
+        self.fields['loa1'] = label_1
+        output_1 = Output(pos=(10, 540), size=(WIDTH - 20, 120))
+        self.fields['o1'] = output_1
+
+    def submit(self):
+        self.fields['o1'].set_text('  ')
+        text = self.fields['i1'].get_text()
+        self.key = self.fields['i2'].get_text()
+        a = RC4_Cipher()
+        a.key_generate(self.key)
+        # print(a.decrypt('aoRrVGYiT8zOz8LuuLWHRI2ESQBN36SohhLfSXxV73o='))
+        d = self.fields['s1'].get_selected()
+        if d[0]:
+            self.output_text = a.encrypt(text)
+        if d[1]:
+            self.output_text = a.decrypt(text)
+
+    def submit_out(self):
+        self.fields['o1'].set_text(self.output_text)
+
+    def generation_key(self):
+        self.key = str(random.randint(1, 256))
+        self.fields['i2'].set_text(self.key)
+
+    # a = RC4()
+    # a.key_generate('100')
+    # print(a.encrypt('hello'))
+    # a.key_generate('100')
+    # print(a.decrypt('wpDCoxzDvcKL'))
 
 
-class RSA(Tab):
+class RSA_full(Tab):
+    global crazy_rsa
     def setup(self):
-        input_field = Input("input_field")
+        input_field = Input("input_field", pos=(10, 10), size=(WIDTH - 20, 80))
         input_field.text = self.name
-        # output_field = InputField("output_field")
-        # self.fields.append(input_field)
-        # self.fields.append(output_field)
-        # input_field = Field("input_field")
-        # input_field = Field("input_field")
+        self.fields['i1'] = input_field
+        label_2 = Label(pos=(10, 100), size=(WIDTH - 20, 90),
+                        text='Типа информация какая то. SHA512 - хеш-функция из семейства алгоритмов SHA-2')
+        self.fields['l2'] = label_2
+        button_2 = Button('', self.generation_key, pos=(10, 200), size=(WIDTH - 20, 70), text='Генерация ключа (<512>)', flag=0)
+        self.fields['b2'] = button_2
+        input_field_2 = Input("ffff", pos=(10, 280), size=(WIDTH - 20, 90))
+        self.fields['i2'] = input_field_2
+        selected_1 = Select(pos=(10, 370), size=(WIDTH - 20, 70), text_list=['Кодировать', 'Декодировать'])
+        self.fields['s1'] = selected_1
+        button_1 = Button('', self.submit, pos=(10, 440), size=(WIDTH - 20, 80), text='Result', flag=0)
+        self.fields['b1'] = button_1
+        label_1 = MicroDraw('', self.submit_out, pos=(10, 525), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 420),
+                            size_b=(WIDTH - 20, 80), speed=120)
+        self.fields['loa1'] = label_1
+        output_1 = Output(pos=(10, 550), size=(WIDTH - 20, 110))
+        self.fields['o1'] = output_1
+
+    def submit(self):
+        global crazy_rsa
+        self.fields['o1'].set_text('  ')
+        text = self.fields['i1'].get_text()
+        self.key = self.fields['i2'].get_text()
+        d = self.fields['s1'].get_selected()
+        if d[0]:
+            crazy_rsa = rsa.encrypt(text.encode('utf8'), self.bob_pub)
+            self.output_text = str(rsa.encrypt(text.encode('utf8'), self.bob_pub))
+        if d[1]:
+            self.output_text = rsa.decrypt(crazy_rsa, self.bob_priv).decode('utf8')
+
+    def submit_out(self):
+        self.fields['o1'].set_text(self.output_text)
+
+    def generation_key(self):
+        self.bob_pub, self.bob_priv = rsa.newkeys(512)
+        self.key = str(self.bob_pub) + ' ' + str(self.bob_priv)
+        self.fields['i2'].set_text(self.key)
 
 
 tab_list = [
@@ -733,7 +824,7 @@ tab_list = [
     SHA512('SHA512'),
     AES12('AES'),
     RC4('RC4'),
-    RSA('RSA')
+    RSA_full('RSA')
 ]
 
 current_tab = tab_list[0]
@@ -746,6 +837,11 @@ pg.display.set_caption("Криптография")  # Название
 tab_surface = pg.Surface((WIDTH, HEIGHT - DEFAULT_MENU_ITEM_HEIGHT))
 
 menu = Menu(tab_list)
+
+a = AESCipher('12')
+t = a.encrypt('hello')
+print(a.encrypt('hello'))
+print(a.decrypt(t))
 
 while not done:
     for tab in tab_list:
