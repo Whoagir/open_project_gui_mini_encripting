@@ -1,7 +1,12 @@
+import random
 import pygame as pg
 import hashlib
 import base64
 import pyperclip
+import rsa
+from Crypto import Random
+from Crypto.Cipher import AES
+from base64 import b64encode, b64decode
 from constant import *
 
 pg.init()
@@ -75,7 +80,8 @@ class Input(Base):
         if (pg.key.get_pressed()[pg.K_c] and (
                 pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL])) and self == focus_input:
             pyperclip.copy(self.text)
-        if pg.key.get_pressed()[pg.K_v] and (pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL]):
+        if (pg.key.get_pressed()[pg.K_v] and (pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL]))\
+                and self == focus_input:
             self.text = pyperclip.paste()
 
     def click(self):
@@ -93,6 +99,10 @@ class Input(Base):
 
     def select_text(self):
         pass
+
+    def set_text(self, text):
+        self.text = text
+
 
     def update(self):
         self.delete_timer = max(0, self.delete_timer - DT)
@@ -186,7 +196,7 @@ class Option(Base):
 
     def render(self, surface):
         pg.draw.rect(surface, self.color, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
-        pg.draw.rect(surface, BLACK, self.rect, DEFAULT_BORDER_RADIUS_2,
+        pg.draw.rect(surface, DEFAULT_BORDER_COLOR, self.rect, DEFAULT_BORDER_RADIUS_2,
                      border_radius=DEFAULT_BORDER_RADIUS_1)
         txt_surface = BUTTON_FONT.render(self.text, True, BLACK)
         surface.blit(txt_surface, (self.rect.x + 20, self.rect.y + 20))
@@ -198,7 +208,7 @@ class Select(Base):
         self.option_list = []
         self.rect_list = []
         self.clicked = [False] * len(text_list)
-        self.color = [GRAY_2] * len(text_list)
+        self.color = [BUTTON_COLOR] * len(text_list)
         count = 0
         pos_option = list(pos[:])
         size_option = list(size[:])
@@ -216,7 +226,7 @@ class Select(Base):
             count += 1
 
     def render(self, surface):
-        pg.draw.rect(surface, WHITE, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
+        pg.draw.rect(surface, BUTTON_COLOR_CLICKED, self.rect, border_radius=DEFAULT_BORDER_RADIUS_1)
         count = 0
         for option in self.option_list:
             option.color = self.color[count]
@@ -233,9 +243,9 @@ class Select(Base):
     def click(self, activate):
         for i in range(len(self.clicked)):
             self.clicked[i] = False
-            self.color[i] = GRAY_2
+            self.color[i] = BUTTON_COLOR
         self.clicked[activate] = True
-        self.color[activate] = WHITE
+        self.color[activate] = BUTTON_COLOR_CLICKED
 
     def get_selected(self):
         return self.clicked
@@ -276,7 +286,11 @@ class Output(Base):
             self.click()
         if (pg.key.get_pressed()[pg.K_c] and (
                 pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL])) and self == focus_input:
-            pyperclip.copy(self.text)
+            #print(type(self.text))
+            if type(self.text) == bytes:
+                pyperclip.copy(self.text.decode('utf-8'))
+            else:
+                pyperclip.copy(self.text)
         if pg.key.get_pressed()[pg.K_v] and (pg.key.get_pressed()[pg.K_LCTRL] or pg.key.get_pressed()[pg.K_RCTRL]):
             self.text = pyperclip.paste()
 
@@ -460,7 +474,76 @@ class MicroDraw(Base):
         self.timer = 5
 
 
+class AESCipher(object):
+    def __init__(self, key):
+        self.block_size = AES.block_size
+        self.key = hashlib.sha256(key.encode()).digest()
+
+    def encrypt(self, plain_text):
+        plain_text = self.__pad(plain_text)
+        iv = Random.new().read(self.block_size)
+        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        encrypted_text = cipher.encrypt(plain_text.encode())
+        return b64encode(iv + encrypted_text).decode("utf-8")
+
+    def decrypt(self, encrypted_text):
+        encrypted_text = b64decode(encrypted_text)
+        iv = encrypted_text[:self.block_size]
+        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        plain_text = cipher.decrypt(encrypted_text[self.block_size:]).decode("utf-8")
+        return self.__unpad(plain_text)
+
+    def __pad(self, plain_text):
+        number_of_bytes_to_pad = self.block_size - len(plain_text) % self.block_size
+        ascii_string = chr(number_of_bytes_to_pad)
+        padding_str = number_of_bytes_to_pad * ascii_string
+        padded_plain_text = plain_text + padding_str
+        return padded_plain_text
+
+    @staticmethod
+    def __unpad(plain_text):
+        last_character = plain_text[len(plain_text) - 1:]
+        return plain_text[:-ord(last_character)]
+
+
 class Base64(Tab):
+    def setup(self):
+        label_1 = Label(pos=(10, 10), size=(WIDTH - 20, 40), text='Поле ввода')
+        self.fields['l1'] = label_1
+        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 110))
+        input_field.text = self.name
+        self.fields['i1'] = input_field
+        label_2 = Label(pos=(10, 150), size=(WIDTH - 20, 170),
+                        text='Типа информация какая то. SHA512 - хеш-функция из семейства алгоритмов SHA-2')
+        self.fields['l2'] = label_2
+        selected_1 = Select(pos=(10, 330), size=(WIDTH - 20, 80), text_list=['Кодировать', 'Декодировать'])
+        self.fields['s1'] = selected_1
+        button_1 = Button('', self.submit, pos=(10, 420), size=(WIDTH - 20, 80), text='Result', flag=0)
+        self.fields['b1'] = button_1
+        label_1 = MicroDraw('', self.submit_out, pos=(10, 510), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 420),
+                            size_b=(WIDTH - 20, 80), speed=120)
+        self.fields['loa1'] = label_1
+        output_1 = Output(pos=(10, 540), size=(WIDTH - 20, 120))
+        self.fields['o1'] = output_1
+
+    def submit(self):
+        self.fields['o1'].set_text('  ')
+        text = self.fields['i1'].get_text()
+        text_1 = text.encode('utf-8')
+        b = base64.b64encode(text_1)
+        # b1 = base64.b64decode(bytes(text, 'utf-8'))
+        d = self.fields['s1'].get_selected()
+        if d[0]:
+            self.output_text = b
+        if d[1]:
+            text_2 = base64.b64decode(text)
+            self.output_text = text_2.decode('utf-8')
+
+    def submit_out(self):
+        self.fields['o1'].set_text(self.output_text)
+
+
+class MD5(Tab):
     def setup(self):
         label_1 = Label(pos=(10, 10), size=(WIDTH - 20, 40), text='Поле ввода')
         self.fields['l1'] = label_1
@@ -481,51 +564,41 @@ class Base64(Tab):
     def submit(self):
         self.fields['o1'].set_text('  ')
         text = self.fields['i1'].get_text()
-        b = base64.b64encode(bytes(text, 'utf-8'))
-        self.output_text = b.decode('utf-8')
+        hash_text = hashlib.md5()
+        hash_text.update(text.encode('utf-8'))
+        self.output_text = hash_text.hexdigest()
 
     def submit_out(self):
         self.fields['o1'].set_text(self.output_text)
-
-
-class MD5(Tab):
-    def setup(self):
-        input_field = Input("input_field")
-        input_field.text = self.name
-        input_field.rect.y = 200
-        # output_field = InputField("output_field")
-        # self.fields.append(input_field)
 
 
 class SHA1(Tab):
     def setup(self):
         label_1 = Label(pos=(10, 10), size=(WIDTH - 20, 40), text='Поле ввода')
         self.fields['l1'] = label_1
-        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 80))
-        input_field.text = ''
+        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 120))
+        input_field.text = self.name
         self.fields['i1'] = input_field
-        label_2 = Label(pos=(10, 120), size=(WIDTH - 20, 200),
-                        text='Типа информация какая то. В криптографии SHA-1'
-                             '(Secure Hash Algorithm 1) - это криптографическая хэш-функция')
+        label_2 = Label(pos=(10, 160), size=(WIDTH - 20, 200),
+                        text='Типа информация какая то. SHA512 - хеш-функция из семейства алгоритмов SHA-2')
         self.fields['l2'] = label_2
-        button_1 = Button('', self.submit, pos=(10, 340), size=(WIDTH - 20, 80), text='Result')
+        button_1 = Button('', self.submit, pos=(10, 370), size=(WIDTH - 20, 80), text='Result', flag=0)
         self.fields['b1'] = button_1
-        output_1 = Output(pos=(10, 440), size=(WIDTH - 20, 80))
+        label_1 = MicroDraw('', self.submit_out, pos=(10, 460), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 370),
+                            size_b=(WIDTH - 20, 80), speed=120)
+        self.fields['loa1'] = label_1
+        output_1 = Output(pos=(10, 490), size=(WIDTH - 20, 120))
         self.fields['o1'] = output_1
-        selected_1 = Select(pos=(10, 540), size=(WIDTH - 20, 80), text_list=['Кодировать', 'Декодировать'])
-        self.fields['s1'] = selected_1
-        # input_field = Input("input_field", pos=(10, 540), size=(WIDTH - 20, 80))
-        # input_field.text = ''
-        # self.fields['i2'] = input_field
 
     def submit(self):
+        self.fields['o1'].set_text('  ')
         text = self.fields['i1'].get_text()
-        d = self.fields['s1'].get_selected()
-        if d[0]:
-            hash_text = hashlib.sha1()
-            hash_text.update(text.encode('utf-8'))
-            output_text = hash_text.hexdigest()
-            self.fields['o1'].set_text(output_text)
+        hash_text = hashlib.sha1()
+        hash_text.update(text.encode('utf-8'))
+        self.output_text = hash_text.hexdigest()
+
+    def submit_out(self):
+        self.fields['o1'].set_text(self.output_text)
 
 
 class SHA256(Tab):
@@ -586,15 +659,48 @@ class SHA512(Tab):
         self.fields['o1'].set_text(self.output_text)
 
 
-class AES(Tab):
+class AES12(Tab):
     def setup(self):
-        input_field = Input("input_field")
+        label_1 = Label(pos=(10, 10), size=(WIDTH - 20, 40), text='Поле ввода')
+        self.fields['l1'] = label_1
+        input_field = Input("input_field", pos=(10, 60), size=(WIDTH - 20, 110))
         input_field.text = self.name
-        # label_1 = MicroDraw('', self.submit, pos=(10, 340), size=(WIDTH - 20, 20), flag=1)
-        # self.fields['loa1'] = label_1
+        self.fields['i1'] = input_field
+        label_2 = Label(pos=(10, 150), size=(WIDTH - 20, 90),
+                        text='Типа информация какая то. SHA512 - хеш-функция из семейства алгоритмов SHA-2')
+        self.fields['l2'] = label_2
+        button_2 = Button('', self.generation_key, pos=(10, 250), size=(528, 70), text='Генерация ключа', flag=0)
+        self.fields['b2'] = button_2
+        input_field_2 = Input("ffff", pos=(537, 250), size=(528, 70))
+        self.fields['i2'] = input_field_2
+        selected_1 = Select(pos=(10, 330), size=(WIDTH - 20, 80), text_list=['Кодировать', 'Декодировать'])
+        self.fields['s1'] = selected_1
+        button_1 = Button('', self.submit, pos=(10, 420), size=(WIDTH - 20, 80), text='Result', flag=0)
+        self.fields['b1'] = button_1
+        label_1 = MicroDraw('', self.submit_out, pos=(10, 510), size=(WIDTH - 20, 20), flag=2, pos_b=(10, 420),
+                            size_b=(WIDTH - 20, 80), speed=120)
+        self.fields['loa1'] = label_1
+        output_1 = Output(pos=(10, 540), size=(WIDTH - 20, 120))
+        self.fields['o1'] = output_1
 
     def submit(self):
-        pass
+        self.fields['o1'].set_text('  ')
+        text = self.fields['i1'].get_text()
+        self.key = self.fields['i2'].get_text()
+        a = AESCipher(key=self.key)
+        #print(a.decrypt('aoRrVGYiT8zOz8LuuLWHRI2ESQBN36SohhLfSXxV73o='))
+        d = self.fields['s1'].get_selected()
+        if d[0]:
+            self.output_text = a.encrypt(text)
+        if d[1]:
+            self.output_text = a.decrypt(text)
+
+    def submit_out(self):
+        self.fields['o1'].set_text(self.output_text)
+
+    def generation_key(self):
+        self.key = str(random.randint(1, 10000))
+        self.fields['i2'].set_text(self.key)
 
 
 class RC4(Tab):
@@ -625,7 +731,7 @@ tab_list = [
     SHA1('SHA1'),
     SHA256('SHA256'),
     SHA512('SHA512'),
-    AES('AES'),
+    AES12('AES'),
     RC4('RC4'),
     RSA('RSA')
 ]
